@@ -25,10 +25,10 @@
 
 * when contract is deployed first, it is configured to act as a presale contract.  
 
-* to switch contract to public ICO mode call advanceStep() function to set public ICO mode.  
+* to switch contract to public ICO mode call **advanceStep()** function to set public ICO mode.  
 *Be careful as there is no way to switch back to presale.*
 
-* when the campaign is over, admin can run finilize() function to end the campaign and transfer unsold and dev tokens to individual wallet.  
+* when the campaign is over, admin can run **finilize()** function to end the campaign and transfer unsold and dev tokens to individual wallet.  
 During finalize, token contract is unlocked and contributors can start trading tokens. 
 
 * in case of emergency function **emergencyStop()** can be called to stop contribution and function **release()** to start campaign again.  
