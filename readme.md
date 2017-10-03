@@ -33,7 +33,7 @@ During finalize, token contract is unlocked and contributors can start trading t
 
 * in case of emergency function **emergencyStop()** can be called to stop contribution and function **release()** to start campaign again.  
 
-* in ICO contract option to withdraw contributions is provided in case ICO was not successful. Minimum cap hasn't been reached.  
+* option to withdraw contributions is provided in case ICO was not successful. Minimum cap hasn't been reached.  
 
 * contributors can call function **refund()** to burn the tokens and receive back their contribution. 
 
