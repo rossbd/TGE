@@ -109,9 +109,9 @@ contract Crowdsale is Pausable {
     address public team; // Address at which the team tokens will be sent        
     uint public ethReceivedPresale; // Number of ETH received in presale
     uint public ethReceivedMain; // Number of ETH received in public sale
-    uint public tokensSentMain; // tokens sent during public ICO
     uint public tokensSentPresale; // tokens sent during presale
-    uint public totalTokensSent; // Number of tokens sent to ETH contributors
+    uint public tokensSentMain; // tokens sent during public ICO   
+    uint public totalTokensSent; // Total number of tokens sent to contributors
     uint public startBlock; // Crowdsale start block
     uint public endBlock; // Crowdsale end block
     uint public maxCap; // Maximum number of tokens to sell
@@ -136,8 +136,7 @@ contract Crowdsale is Pausable {
 
     // @notice to verify if action is not performed out of the campaing range
     modifier respectTimeFrame() {
-        if ((block.number < startBlock) || (block.number > endBlock)) 
-            revert();
+        require (block.number >= startBlock && block.number <= endBlock);
         _;
     }
 
@@ -160,7 +159,7 @@ contract Crowdsale is Pausable {
     function Crowdsale() public {               
         multisig = 0x6C88e6C76C1Eb3b130612D5686BE9c0A0C78925B; //TODO: Replace address with correct one
         team = 0x6C88e6C76C1Eb3b130612D5686BE9c0A0C78925B; //TODO: Replace address with correct one                                                                
-        maxCap = 160000000e18;         
+        maxCap = 160000000e18;   // TODO: adjust maxCap by tokens sold in the first presale
         minCap = 16667 ether;
         tokenPriceWei = 1 ether/1000;  
         minInvestETH = 5 ether;     
@@ -401,7 +400,7 @@ contract Token is ERC20,  Ownable {
     function Token(address _crowdSaleAddress) public {
         
         locked = true;  // Lock the transfCrowdsaleer function during the crowdsale
-        totalSupply = 60000000e18; 
+        totalSupply = 250000000e18; 
         name = "Auditchain"; // Set the name for display purposes
         symbol = "AUDT"; // Set the symbol for display purposes
         decimals = 18; // Amount of decimals for display purposes
