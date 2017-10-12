@@ -120,7 +120,7 @@ contract Crowdsale is Pausable {
     bool public crowdsaleClosed; // Is crowdsale still in progress
     Step public currentStep;  // to allow for controlled steps of the campaign 
     uint public refundCount;  // number of refunds
-    uint public totalRefunded; // total amount of refunds    
+    uint public totalRefunded; // total amount of Eth refunded    
     uint public tokenPriceWei;  // price of token in wei
 
     mapping(address => Backer) public backers; // contributors list
@@ -269,11 +269,11 @@ contract Crowdsale is Pausable {
     // @return tokensToPurchase {uint} value of tokens to purchase
     function calculateNoOfTokensToSend(uint _tokenAmount) internal view returns(uint) {                                          
 
-        if (tokensSentMain <= 26000000e18)        // First 26,000,000 15%
+        if (tokensSentMain <= 26000000e18)        // First 26,000,000 30% discount
             return _tokenAmount.add(_tokenAmount.mul(30) / 100);                 
-        else if (tokensSentMain <= 50000000e18)   // next 24,000,000 13%  
+        else if (tokensSentMain <= 50000000e18)   // next 24,000,000 20% discount 
             return _tokenAmount.add(_tokenAmount.mul(20) / 100); 
-        else if (tokensSentMain <= 72000000e18)   // next 22,000,000 11% 
+        else if (tokensSentMain <= 72000000e18)   // next 22,000,000 10% discount
             return _tokenAmount.add(_tokenAmount.mul(10) / 100);                     
         else                                            // remaining 46,000,000 0%
             return (_tokenAmount);
