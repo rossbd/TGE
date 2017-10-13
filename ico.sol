@@ -109,8 +109,8 @@ contract Crowdsale is Pausable {
     address public team; // Address at which the team tokens will be sent        
     uint public ethReceivedPresale; // Number of ETH received in presale
     uint public ethReceivedMain; // Number of ETH received in public sale
-    uint public tokensSentPresale; // tokens sent during presale
-    uint public tokensSentMain; // tokens sent during public ICO   
+    uint public tokensSentPresale; // Tokens sent during presale
+    uint public tokensSentMain; // Tokens sent during public ICO   
     uint public totalTokensSent; // Total number of tokens sent to contributors
     uint public startBlock; // Crowdsale start block
     uint public endBlock; // Crowdsale end block
@@ -118,10 +118,10 @@ contract Crowdsale is Pausable {
     uint public minCap; // Minimum number of ETH to raise
     uint public minInvestETH; // Minimum amount to invest   
     bool public crowdsaleClosed; // Is crowdsale still in progress
-    Step public currentStep;  // to allow for controlled steps of the campaign 
-    uint public refundCount;  // number of refunds
-    uint public totalRefunded; // total amount of Eth refunded    
-    uint public tokenPriceWei;  // price of token in wei
+    Step public currentStep;  // To allow for controlled steps of the campaign 
+    uint public refundCount;  // Number of refunds
+    uint public totalRefunded; // Total amount of Eth refunded    
+    uint public tokenPriceWei;  // Price of token in wei
 
     mapping(address => Backer) public backers; // contributors list
     address[] public backersIndex; // to be able to iterate through backers for verification.  
