@@ -42,4 +42,4 @@ During finalize, token contract is unlocked and contributors can start trading t
     1. Current block number has to be higher then endBlock. 
     2. Campaign did't reach minCap.
     3. Step has to be set to **Step.Refunding** using **prepareRefund()** function.  Function will expect exact amount of money which both presael and public ICO received during the campaign. 
-
+* During ICO tokens are in the locked stage. In order to be able to transfer tokens, admin has to call function **unlock()** of token contract. 
