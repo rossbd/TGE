@@ -227,7 +227,7 @@ contract Crowdsale is Pausable {
     function adjustDuration(uint _block) external onlyOwner() {
 
         require(_block < 230400);  // 2*60*24*80 days = 230400 allow for 80 days of campaign assuming block takes 30 sec.
-        require(_block > block.number); // ensure that endBlock is not set in the past
+        require(_block > block.number.sub(startBlock)); // ensure that endBlock is not set in the past
         endBlock = startBlock.add(_block); 
     }
 
