@@ -1,28 +1,31 @@
 pragma solidity ^ 0.4.17;
 
+
 library SafeMath {
-    function mul(uint a, uint b) pure internal returns(uint) {
+    
+    function mul(uint a, uint b) internal pure returns(uint) {
         uint c = a * b;
         assert(a == 0 || c / a == b);
         return c;
     }
 
-
-    function sub(uint a, uint b) pure internal returns(uint) {
+    function sub(uint a, uint b) internal pure  returns(uint) {
         assert(b <= a);
         return a - b;
     }
 
-    function add(uint a, uint b) pure internal returns(uint) {
+    function add(uint a, uint b) internal pure returns(uint) {
         uint c = a + b;
         assert(c >= a && c >= b);
         return c;
     }
 }
 
-contract ERC20 {
-    uint public totalSupply;
 
+contract ERC20 {
+
+    uint public totalSupply;
+ 
     function balanceOf(address who) public view returns(uint);
 
     function allowance(address owner, address spender) public view returns(uint);
@@ -38,58 +41,88 @@ contract ERC20 {
 }
 
 
+/**
+ * @title Ownable
+ * @dev The Ownable contract has an owner address, and provides basic authorization control
+ * functions, this simplifies the implementation of "user permissions".
+ */
 contract Ownable {
-    address public owner;
 
+    address public owner;
+    
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    /**
+    * @dev The Ownable constructor sets the original `owner` of the contract to the sender
+    * account.
+    */
     function Ownable() public {
         owner = msg.sender;
     }
 
-    function transferOwnership(address newOwner) public onlyOwner {
-        if (newOwner != address(0)) 
-            owner = newOwner;
-    }
-
-    function kill() public {
-        if (msg.sender == owner) 
-            selfdestruct(owner);
-    }
-
+    /**
+    * @dev Throws if called by any account other than the owner.
+    */
     modifier onlyOwner() {
-        if (msg.sender == owner)
-            _;
+        require(msg.sender == owner);
+        _;
     }
+
+    /**
+    * @dev Allows the current owner to transfer control of the contract to a newOwner.
+    * @param newOwner The address to transfer ownership to.
+    */
+    function transferOwnership(address newOwner) onlyOwner public {
+        require(newOwner != address(0));
+        OwnershipTransferred(owner, newOwner);
+        owner = newOwner;
+    }
+
 }
 
+
+/**
+ * @title Pausable
+ * @dev Base contract which allows children to implement an emergency stop mechanism.
+ */
 contract Pausable is Ownable {
-    bool public stopped;
+    event Pause();
+    event Unpause();
 
-    modifier stopInEmergency {
-        if (stopped) {
-            revert();
-        }
+    bool public paused = false;
+
+  /**
+   * @dev Modifier to make a function callable only when the contract is not paused.
+   */
+    modifier whenNotPaused() {
+        require(!paused);
         _;
     }
 
-    modifier onlyInEmergency {
-        if (!stopped) {
-            revert();
-        }
+  /**
+   * @dev Modifier to make a function callable only when the contract is paused.
+   */
+    modifier whenPaused() {
+        require(paused);
         _;
     }
 
-    // Called by the owner in emergency, triggers stopped state
-    function emergencyStop() external onlyOwner() {
-        stopped = true;
+  /**
+   * @dev called by the owner to pause, triggers stopped state
+   */
+    function pause() public onlyOwner whenNotPaused {
+        paused = true;
+        Pause();
     }
 
-    // Called by the owner to end of emergency, returns to normal state
-    function release() external onlyOwner() onlyInEmergency {
-        stopped = false;
+  /**
+   * @dev called by the owner to unpause, returns to normal state
+   */
+    function unpause() public onlyOwner whenPaused {
+        paused = false;
+        Unpause();
     }
 }
-
-
 
 
 // Crowdsale Smart Contract
@@ -126,20 +159,11 @@ contract Crowdsale is Pausable {
     mapping(address => Backer) public backers; // contributors list
     address[] public backersIndex; // to be able to iterate through backers for verification.  
 
-
-    // @ntice overwrite to ensure that if any money are left, they go 
-    // to multisig wallet
-    function kill() public {
-        if (msg.sender == owner) 
-            selfdestruct(multisig);
-    }
-
     // @notice to verify if action is not performed out of the campaign range
     modifier respectTimeFrame() {
-        require (block.number >= startBlock && block.number <= endBlock);
+        require(block.number >= startBlock && block.number <= endBlock);
         _;
     }
-
 
     // @notice to set and determine steps of crowdsale
     enum Step {      
@@ -148,11 +172,15 @@ contract Crowdsale is Pausable {
         Refunding  // in case campaign failed during this step contributors will be able to receive refunds
     }
 
-
     // Events
     event ReceivedETH(address backer, uint amount, uint tokenAmount);
     event RefundETH(address backer, uint amount);
 
+    // @notice to populate website with status of the sale 
+    function returnWebsiteData() external view returns(uint, uint, uint, uint, uint, uint, uint, uint, Step, bool, bool) {            
+    
+        return (startBlock, endBlock, backersIndex.length, ethReceivedPresale.add(ethReceivedMain), maxCap, minCap, totalTokensSent, tokenPriceWei, currentStep, paused, crowdsaleClosed);
+    }
 
     // Crowdsale  {constructor}
     // @notice fired when contract is crated. Initializes all constant and initial values.
@@ -166,26 +194,39 @@ contract Crowdsale is Pausable {
         currentStep = Step.FundingPreSale;
     }
 
-    // @notice to populate website with status of the sale 
-    function returnWebsiteData() external view returns(uint, uint, uint, uint, uint, uint, uint, uint, Step, bool, bool) {            
-    
-        return (startBlock, endBlock, backersIndex.length, ethReceivedPresale.add(ethReceivedMain), maxCap, minCap, totalTokensSent,  tokenPriceWei, currentStep, stopped, crowdsaleClosed);
+    // {fallback function}
+    // @notice It will call internal function which handles allocation of Ether and calculates tokens.
+    // contributor will be instructed to provide 250,000 gas
+    function () external payable {           
+        contribute(msg.sender);
     }
-
 
     // @notice Specify address of token contract
     // @param _tokenAddress {address} address of token contract
-    // @return res {bool}
-    function updateTokenAddress(Token _tokenAddress) external onlyOwner() returns(bool res) {
+    function updateTokenAddress(Token _tokenAddress) external onlyOwner() {
         token = _tokenAddress;
-        return true;
     }
 
+    // @notice It will be called by owner to start the sale    
+    function start(uint _block) external onlyOwner() {   
+        require(_block <= 371520);  // 4.3×60×24×60 days = 371520 assuming 4.3 blocks in minute       
+        startBlock = block.number;
+        endBlock = startBlock.add(_block); 
+    }
+
+      // @notice Due to changing average of block time
+    // this function will allow on adjusting duration of campaign closer to the end 
+    function adjustDuration(uint _block) external onlyOwner() {
+        // 4.3*60*24*80 days = 495360 allow for 80 days of campaign assuming block takes 30 sec.
+        require(_block < 495360);  
+        require(_block > block.number.sub(startBlock)); // ensure that endBlock is not set in the past
+        endBlock = startBlock.add(_block); 
+    }
 
     // @notice set the step of the campaign from presale to public sale
     // contract is deployed in presale mode
     // WARNING: there is no way to go back
-    function advanceStep() public onlyOwner() {
+    function advanceStep() external onlyOwner() {
 
         currentStep = Step.FundingPublicSale;                                             
         minInvestETH = 1 ether/10;                                
@@ -193,48 +234,81 @@ contract Crowdsale is Pausable {
 
     // @notice in case refunds are needed, money can be returned to the contract
     // and contract switched to mode refunding
-    function prepareRefund() public payable onlyOwner() {
+    function prepareRefund() external payable onlyOwner() {
         
         require(msg.value == ethReceivedPresale.add(ethReceivedMain)); // make sure that proper amount of ether is sent
         currentStep = Step.Refunding;
     }
 
+    // @notice This function will finalize the sale.
+    // It will only execute if predetermined sale time passed or all tokens are sold.
+    // it will fail if minimum cap is not reached
+    function finalize() external onlyOwner() {
+
+        require(!crowdsaleClosed);        
+        // purchasing precise number of tokens might be impractical, 
+        // thus subtract 1000 tokens so finalization is possible
+        // near the end 
+        require(block.number >= endBlock || totalTokensSent >= maxCap - 1000); 
+        
+        uint totalEtherReceived = ethReceivedPresale + ethReceivedMain;
+        require(totalEtherReceived >= minCap);  // ensure that minimum was reached
+        crowdsaleClosed = true;                
+        if (!token.transfer(team, token.balanceOf(this))) // transfer all remaining tokens to team address
+            revert();
+        token.unlock();               
+    }
+
+    // @notice Fail-safe drain
+    function drain() external onlyOwner() {
+        multisig.transfer(this.balance);               
+    }
+
+    // @notice Fail-safe token transfer
+    function tokenDrian() external onlyOwner() {
+        if (block.number > endBlock) {
+            if (!token.transfer(team, token.balanceOf(this))) 
+                revert();
+        }
+    }
+
+    // @notice it will allow contributors to get refund in case campaign failed
+    // @return {bool} true if successful
+    function refund() external whenNotPaused returns (bool) {
+
+        require(currentStep == Step.Refunding); 
+        
+        uint totalEtherReceived = ethReceivedPresale + ethReceivedMain;
+
+        require(totalEtherReceived < minCap);  // ensure that campaign failed
+        require(this.balance > 0);  // contract will hold 0 ether at the end of campaign.                                  
+                                    // contract needs to be funded through fundContract() 
+        Backer storage backer = backers[msg.sender];
+
+        require(backer.weiReceived > 0);  // ensure that user has sent contribution
+        require(!backer.refunded);        // ensure that user hasn't been refunded yet
+
+        backer.refunded = true;  // save refund status to true
+        refundCount++;
+        totalRefunded = totalRefunded + backer.weiReceived;
+
+        if (!token.burn(msg.sender, backer.tokensSent)) // burn tokens
+            revert();        
+        msg.sender.transfer(backer.weiReceived);  // send back the contribution 
+        RefundETH(msg.sender, backer.weiReceived);
+        return true;
+    }
 
     // @notice return number of contributors
     // @return  {uint} number of contributors   
     function numberOfBackers() public view returns(uint) {
         return backersIndex.length;
     }
-
-
-    // {fallback function}
-    // @notice It will call internal function which handles allocation of Ether and calculates tokens.
-    function () external payable {           
-        contribute(msg.sender);
-    }
-
-
-    // @notice It will be called by owner to start the sale    
-    function start(uint _block) external onlyOwner() {   
-
-        require(_block < 172800);  // 2*60*24*60 days = 172800 allow for 60 days of campaign assuming block takes 30 sec.
-        startBlock = block.number;
-        endBlock = startBlock.add(_block); 
-    }
-
-    // @notice Due to changing average of block time
-    // this function will allow on adjusting duration of campaign closer to the end 
-    function adjustDuration(uint _block) external onlyOwner() {
-
-        require(_block < 230400);  // 2*60*24*80 days = 230400 allow for 80 days of campaign assuming block takes 30 sec.
-        require(_block > block.number.sub(startBlock)); // ensure that endBlock is not set in the past
-        endBlock = startBlock.add(_block); 
-    }
-
+  
     // @notice It will be called by fallback function whenever ether is sent to it
     // @param  _backer {address} address of contributor
     // @return res {bool} true if transaction was successful
-    function contribute(address _backer) internal stopInEmergency respectTimeFrame returns(bool res) {
+    function contribute(address _backer) internal whenNotPaused respectTimeFrame {
 
         uint tokensToSend = determindPurchase();
             
@@ -243,48 +317,43 @@ contract Crowdsale is Pausable {
         if (backer.weiReceived == 0)
             backersIndex.push(_backer);
 
-        if (!token.transfer(_backer, tokensToSend)) // Transfer tokens
-            revert(); 
-        backer.tokensSent = backer.tokensSent.add(tokensToSend); // save contributor's total tokens sent
+        backer.tokensSent = backer.tokensSent + tokensToSend; // save contributor's total tokens sent
         backer.weiReceived = backer.weiReceived.add(msg.value);  // save contributor's total ether contributed
 
         if (Step.FundingPublicSale == currentStep) { // Update the total Ether received and tokens sent during public sale
             ethReceivedMain = ethReceivedMain.add(msg.value);
-            tokensSentMain = tokensSentMain.add(tokensToSend);
+            tokensSentMain = tokensSentMain + tokensToSend;
         }else {                                                 // Update the total Ether recived and tokens sent during presale
             ethReceivedPresale = ethReceivedPresale.add(msg.value); 
-            tokensSentPresale = tokensSentPresale.add(tokensToSend);
-        }
-                                                     
-        totalTokensSent = totalTokensSent.add(tokensToSend);     // update the total amount of tokens sent        
+            tokensSentPresale = tokensSentPresale + tokensToSend;
+        }                                                     
+        totalTokensSent = totalTokensSent + tokensToSend;     // update the total amount of tokens sent  
+        if (!token.transfer(_backer, tokensToSend)) // Transfer tokens
+            revert();      
         multisig.transfer(this.balance);   // transfer funds to multisignature wallet             
-
-        ReceivedETH(_backer, msg.value, tokensToSend); // Register event
-        return true;
+        ReceivedETH(_backer, msg.value, tokensToSend); // Register event       
     }
 
-
-    // @notice It is called by contribute to determine amount of tokens for given contribution
+    // @notice It is called by determindPurchase() to determine amount of tokens for given contribution
     // @param _tokenAmount {uint} basic amount of tokens
-    // @return tokensToPurchase {uint} value of tokens to purchase
+    // @return tokensToPurchase {uint} amount of tokens to purchase
     function calculateNoOfTokensToSend(uint _tokenAmount) internal view returns(uint) {                                          
 
         if (tokensSentMain <= 26000000e18)        // First 26,000,000 30% discount
-            return _tokenAmount.add(_tokenAmount.mul(30) / 100);                 
+            return _tokenAmount + ((_tokenAmount * 30) / 100);                 
         else if (tokensSentMain <= 50000000e18)   // next 24,000,000 20% discount 
-            return _tokenAmount.add(_tokenAmount.mul(20) / 100); 
+            return _tokenAmount + ((_tokenAmount * 20) / 100); 
         else if (tokensSentMain <= 72000000e18)   // next 22,000,000 10% discount
-            return _tokenAmount.add(_tokenAmount.mul(10) / 100);                     
+            return _tokenAmount + ((_tokenAmount * 10) / 100);                     
         else                                            // remaining 46,000,000 0%
-            return (_tokenAmount);
+            return _tokenAmount;
     }
-
 
     // @notice determine if purchase is valid and return proper number of tokens
     // @return tokensToSend {uint} proper number of tokens based on the timline
-    function determindPurchase() constant internal returns (uint) {
+    function determindPurchase() internal view returns (uint) {
        
-        require (msg.value >= minInvestETH);   // ensure that min contributions amount is met
+        require(msg.value >= minInvestETH);   // ensure that min contributions amount is met
 
         // calculate amount of tokens to send  (add 18 0s first)   
         uint tokensToSend = msg.value.mul(1e18) / tokenPriceWei;  // basic nmumber of tokens to send
@@ -298,75 +367,11 @@ contract Crowdsale is Pausable {
 
         return tokensToSend;
     }
-  
-
-
-    // @notice This function will finalize the sale.
-    // It will only execute if predetermined sale time passed or all tokens are sold.
-    // it will fail if minimum cap is not reached
-    function finalize() external onlyOwner() {
-
-        require(!crowdsaleClosed);        
-        // purchasing precise number of tokens might be impractical, thus subtract 1000 tokens so finalization is possible
-        // near the end 
-        require (block.number >= endBlock || totalTokensSent >= maxCap.sub(1000)); 
-        
-        uint totalEtherReceived = ethReceivedPresale.add(ethReceivedMain);
-        require(totalEtherReceived >= minCap);  // ensure that minimum was reached
-        
-        if (!token.transfer(team, token.balanceOf(this))) // transfer all remaining tokens to team address
-            revert();
-        token.unlock();        
-        crowdsaleClosed = true;        
-    }
-
-
-    // @notice Fail-safe drain
-    function drain() external onlyOwner() {
-        multisig.transfer(this.balance);               
-    }
-
-
-    // @notice Fail-safe token transfer
-    function tokenDrian() external onlyOwner() {
-    if (block.number > endBlock) {
-        if (!token.transfer(team, token.balanceOf(this))) 
-                revert();
-        }
-    }
-    
-
-    // @notice it will allow contributors to get refund in case campaign failed
-    // @return {bool} true if successful
-    function refund() external stopInEmergency returns (bool) {
-
-        require(currentStep == Step.Refunding); 
-        
-        uint totalEtherReceived = ethReceivedPresale.add(ethReceivedMain);
-
-        require(totalEtherReceived < minCap);  // ensure that campaign failed
-        require(this.balance > 0);  // contract will hold 0 ether at the end of campaign.                                  
-                                    // contract needs to be funded through fundContract() 
-
-        Backer storage backer = backers[msg.sender];
-
-        require (backer.weiReceived > 0);  // ensure that user has sent contribution
-        require(!backer.refunded);         // ensure that user hasn't been refunded yet
-
-        if (!token.burn(msg.sender, backer.tokensSent)) // burn tokens
-            revert();
-        backer.refunded = true;  // save refund status to true
-    
-        refundCount ++;
-        totalRefunded = totalRefunded.add(backer.weiReceived);
-        msg.sender.transfer(backer.weiReceived);  // send back the contribution 
-        RefundETH(msg.sender, backer.weiReceived);
-        return true;
-    }
 }
 
 // @notice The token contract
-contract Token is ERC20,  Ownable {
+
+contract Token is ERC20, Ownable {
 
     using SafeMath for uint;
     // Public variables of the token
@@ -380,8 +385,8 @@ contract Token is ERC20,  Ownable {
     
 
 
-    mapping(address => uint) balances;
-    mapping(address => mapping(address => uint)) allowed;
+    mapping(address => uint) public balances;
+    mapping(address => mapping(address => uint)) public allowed;
 
     // @notice tokens are locked during the ICO. Allow transfer of tokens after ICO. 
     modifier onlyUnlocked() {
@@ -390,14 +395,12 @@ contract Token is ERC20,  Ownable {
         _;
     }
 
-
     // @Notice allow burning of tokens only by authorized users 
     modifier onlyAuthorized() {
-        if (msg.sender != owner && msg.sender != crowdSaleAddress ) 
+        if (msg.sender != owner && msg.sender != crowdSaleAddress) 
             revert();
         _;
     }
-
 
     // @notice The Token constructor
     // @param _crowdSaleAddress {address} address of crowdsale contract
@@ -409,10 +412,8 @@ contract Token is ERC20,  Ownable {
         name = "Auditchain"; // Set the name for display purposes
         symbol = "AUDT"; // Set the symbol for display purposes
         decimals = 18; // Amount of decimals for display purposes
-        crowdSaleAddress = _crowdSaleAddress;                                          
-        balances[crowdSaleAddress] = 160000000e18 - _tokensSoldPrivateSale;  // maxCap is 160000000e18
-        // TODO: replace address with multisig wallet address 
-        balances[0xF821Fd99BCA2111327b6a411C90BE49dcf78CE0f] = totalSupply - balances[crowdSaleAddress]; // assign tokens for the team/dev
+        crowdSaleAddress = _crowdSaleAddress;  
+        balances[crowdSaleAddress] = 160000000e18 - _tokensSoldPrivateSale;  // maxCap is 160000000e18       
     }
 
     // @notice unlock tokens for trading
@@ -424,7 +425,6 @@ contract Token is ERC20,  Ownable {
     function lock() public onlyAuthorized {
         locked = true;
     }
-    
 
     // @notice burn tokens in case campaign failed
     // @param _member {address} of member
@@ -448,15 +448,14 @@ contract Token is ERC20,  Ownable {
         return true;
     }
 
-
     // @notice transfer tokens from given address to another address
     // @param _from {address} from whom tokens are transferred 
     // @param _to {address} to whom tokens are transferred
     // @parm _value {uint} amount of tokens to transfer
     // @return  {bool} true if successful   
     function transferFrom(address _from, address _to, uint256 _value) public onlyUnlocked returns(bool success) {
-        require (balances[_from] >= _value); // Check if the sender has enough                            
-        require (_value <= allowed[_from][msg.sender]); // Check if allowed is greater or equal        
+        require(balances[_from] >= _value); // Check if the sender has enough                            
+        require(_value <= allowed[_from][msg.sender]); // Check if allowed is greater or equal        
         balances[_from] = balances[_from].sub(_value); // Subtract from the sender
         balances[_to] = balances[_to].add(_value); // Add the same to the recipient
         allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_value);
@@ -469,7 +468,6 @@ contract Token is ERC20,  Ownable {
     function balanceOf(address _owner) public view returns(uint balance) {
         return balances[_owner];
     }
-
 
     /**
     * @dev Approve the passed address to spend the specified amount of tokens on behalf of msg.sender.
@@ -486,7 +484,6 @@ contract Token is ERC20,  Ownable {
         Approval(msg.sender, _spender, _value);
         return true;
     }
-
 
     // @notice to query of allowanc of one user to the other
     // @param _owner {address} of the owner of the account
@@ -511,9 +508,9 @@ contract Token is ERC20,  Ownable {
     function decreaseApproval (address _spender, uint _subtractedValue) public returns (bool success) {
         uint oldValue = allowed[msg.sender][_spender];
         if (_subtractedValue > oldValue) {
-        allowed[msg.sender][_spender] = 0;
+            allowed[msg.sender][_spender] = 0;
         } else {
-        allowed[msg.sender][_spender] = oldValue.sub(_subtractedValue);
+            allowed[msg.sender][_spender] = oldValue.sub(_subtractedValue);
         }
         Approval(msg.sender, _spender, allowed[msg.sender][_spender]);
         return true;
