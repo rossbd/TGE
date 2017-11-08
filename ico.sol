@@ -290,7 +290,7 @@ contract Crowdsale is Pausable {
 
         backer.refunded = true;  // save refund status to true
         refundCount++;
-        totalRefunded = totalRefunded + backer.weiReceived;
+        totalRefunded += backer.weiReceived;
 
         if (!token.burn(msg.sender, backer.tokensSent)) // burn tokens
             revert();        
@@ -361,7 +361,7 @@ contract Crowdsale is Pausable {
         if (Step.FundingPublicSale == currentStep)   // calculate stepped price of token in public sale
             tokensToSend = calculateNoOfTokensToSend(tokensToSend); 
         else                                         // calculate number of tokens for presale with 50% bonus
-            tokensToSend = tokensToSend.add(tokensToSend.mul(50) / 100);
+            tokensToSend = tokensToSend.add((tokensToSend * 50) / 100);
           
         require(totalTokensSent.add(tokensToSend) < maxCap); // Ensure that max cap hasn't been reached  
 
