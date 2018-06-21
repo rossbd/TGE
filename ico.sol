@@ -265,7 +265,7 @@ contract Crowdsale is Pausable {
     }
 
     // @notice Fail-safe token transfer
-    function tokenDrian() external onlyOwner() {
+    function tokenDrain() external onlyOwner() {
         if (block.number > endBlock) {
             if (!token.transfer(team, token.balanceOf(this))) 
                 revert();
